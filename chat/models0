@@ -1,0 +1,70 @@
+from django.db import models
+
+from django.conf import settings
+from django.db import models
+from django.db.models import Q
+from advert.models import Advert
+
+
+class InboxManager(models.Manager):
+    def by_user(self, user):
+        qlookup = Q(owner=user) | Q(responder=user)
+        qlookup2 = Q(owner=user) & Q(responder=user)
+        qs = self.get_queryset().filter(qlookup).exclude(qlookup2).distinct()
+        return qs
+
+    def get_or_new(self, user):#, advert_id): # get_or_create
+        username = user.username
+        # qlookup1 = Q(owner__username=username) & Q(responder__username=other_username) #& Q(advert__id=advert_id)
+        # qlookup2 = Q(owner__username=other_username) & Q(responder__username=username) #& Q(advert__id=advert_id)
+        qs = self.get_queryset().filter(owner__username=username).distinct()
+        if qs.count() == 1:
+            return qs.first(), False
+        elif qs.count() > 1:
+            return qs.order_by('timestamp').first(), False
+        else:
+        #     Klass = user.__class__
+        #     user2 = Klass.objects.get(username=other_username)
+        #     try:
+        #         advert = user2.adverts.all().get(pk=advert_id)
+        #     except:
+        #         return None, False
+        #     if user != user2:
+            obj = self.model(
+                    owner=user,
+                    #responder=user2
+                    #advert=advert
+                )
+            obj.save()
+            return obj, True
+        return None, False
+
+
+class Inbox(models.Model):
+    owner        = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_thread_owner')
+    #responder    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_thread_responder')
+    #advert       = models.ForeignKey(Advert, on_delete=models.CASCADE, related_name = 'chat_thread_advert')
+    updated      = models.DateTimeField(auto_now=True)
+    timestamp    = models.DateTimeField(auto_now_add=True)
+
+    objects      = ThreadManager()
+
+    @property
+    def room_group_name(self):
+        return f'chat_{self.id}'
+
+    def broadcast(self, msg=None):
+        if msg is not None:
+            broadcast_msg_to_chat(msg, group_name=self.room_group_name, user='admin')
+            return True
+        return False
+
+    def get_history(self, user):
+        return ChatMessage.objects.filter(Inbox=self, user__username=user).order_by('-timestamp').only('user','message','user__username')
+
+
+class ChatMessage(models.Model):
+    inbox      = models.ForeignKey(Inbox, null=True, blank=True, on_delete=models.CASCADE)
+    user        = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name='sender', on_delete=models.CASCADE)
+    message     = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)

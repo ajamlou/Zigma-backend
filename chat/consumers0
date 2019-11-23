@@ -1,0 +1,124 @@
+import asyncio
+import json
+from django.contrib.auth import get_user_model
+from channels.consumer import AsyncConsumer
+from channels.db import database_sync_to_async
+from .models0 import inbox, ChatMessage
+from django.contrib.auth.models import User, AnonymousUser
+from rest_framework.authtoken.models import Token
+
+class InboxConsumer(AsyncConsumer):
+    async def websocket_connect(self, event):
+        print("connected", event)
+        me = self.scope["user"]
+
+        # if me == AnonymousUser():
+        #     return
+
+        you = self.scope['url_route']['kwargs']['username']
+        #advert_id = self.scope['url_route']['kwargs']['advert_id']
+        your_inbox, created = await self.get_inbox(you)#,advert_id)
+        my_inbox, created = await self.get_inbox(me)
+        self.your_inbox=your_inbox
+        self.my_inbox=my_inbox
+        my_room = f"inbox_{my_inbox.id}"
+        your_room = f"inbox_{your_inbox.id}"
+        self.my_room = my_room
+        self.your_room = your_room
+
+        await self.channel_layer.group_add(
+        my_room,
+        self.channel_name
+        )
+
+        await self.send({
+        "type": "websocket.accept"
+        })
+
+    async def websocket_receive(self, event):
+        print("recieve", event)
+        text_data = event.get("text")
+        if text_data is not None:
+            dict_data = json.loads(text_data)
+            command = dict_data.get("command")
+            if command is not None:
+                if command == "get_history":
+                    await self.get_message_history()
+            else:
+                #{'type': 'websocket.receive', 'text': {'message':'hej hej!'}}
+                user = self.scope['user']
+                msg = dict_data.get("message")
+                response = {
+                "text":msg,
+                "user":user.username
+                }
+
+                # new_event = {
+                # "type":"websocket.send",
+                # "text":json.dumps(response)
+                # }
+                await self.create_message(msg)
+
+                await self.channel_layer.group_send(
+                self.my_room,
+                {
+                "type":"chat_message",
+                "text":json.dumps(response, ensure_ascii=False)
+                }
+                )
+
+                await self.channel_layer.group_send(
+                self.your_room,
+                {
+                "type":"chat_message",
+                "text":json.dumps(response, ensure_ascii=False)
+                }
+                )
+
+    async def chat_message(self,event):
+        print({
+        "type":"websocket.send",
+        "text":event['text']
+        })
+        await self.send({
+        "type":"websocket.send",
+        "text":event['text']
+        })
+
+    async def get_message_history(self):
+        allMsgsUser1 = await self.get_inbox_history()
+        allMsgsUser2 = await self.get_inbox_history()
+
+        msg_data = {"data":[]}
+        for msg in allMsgs.iterator():
+            message={}
+            message["user"]=msg.user.username
+            message["message"]=msg.message
+            msg_data["data"].append(message)
+
+        await self.send({
+        "type": "websocket.send",
+        "text": json.dumps(msg_data, ensure_ascii=False)
+        })
+
+
+
+    async def websocket_disconnect(self,event):
+        await self.channel_layer.group_discard(
+            self.my_room,
+            self.channel_name
+            )
+
+    @database_sync_to_async
+    def get_inbox(self,user):#,advert_id):
+        return Inbox.objects.get_or_new(user)#,advert_id)
+
+    @database_sync_to_async
+    def get_inbox_history(self):
+        combined_inboxes = self.your_inbox.get_history(self.scope["user"].username) | self.my_inbox.get_history(self.scope['url_route']['kwargs']['username'])
+        return
+
+    @database_sync_to_async
+    def create_message(self,msg):
+        #Sparar msgs till databasen
+        return ChatMessage.objects.create(user=self.scope["user"], message=msg, inbox=self.your_inbox)#,advert_id)

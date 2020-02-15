@@ -1,6 +1,6 @@
 # Zigma
-Backend för appen Zigma, en cross-platform app för att köpa och sälja begagnad kurslitteratur. Mitt ansvar, utöver att bära huvudansvaret för utvecklingen av vår backend var säkerhet, användar-auktorisering planering av databas- och API-strukturen samt optimering av databas-queries. Jag utvecklade dessutom backend för live-chatten. Vi använde oss av Microsoft Azures Cloud-tjänst för databasen. Projektets backend är kodat i Django/Django Channels. Mer info kommer i framtiden.
+The application aims to centralize the academic second hand book market. The application has a backend written in Django/Django channels together with Microsoft Azure. The application was part of my bachelor's dissertation, together with three other students. My head responsibility was UX design and backend development, where I focused on modelling the database and creating the API.
 
 ## Site Map
-Bilderna nedan är skärmdumpar direkt från appen och beskriver appens flöde.
-![sitemap](app-map.jpeg?raw=true "demo1")
+Screenshots from interaction with the app.
+![zigma](https://user-images.githubusercontent.com/44610361/74586724-d56f3c80-4fea-11ea-8cbe-043637934fb2.jpeg)
